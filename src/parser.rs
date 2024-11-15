@@ -1,12 +1,7 @@
+use std::fmt::{self, Debug};
 use crate::lexer::Token;
+use crate::error::Error;
 
-#[derive(Debug)]
-pub enum Error {
-    LexingError(String),
-    ParsingError(String),
-}
-
-#[derive(Debug)]
 pub enum Ast {
     Value(f64),
     Neg(Box<Ast>),
@@ -15,7 +10,92 @@ pub enum Ast {
     Mult(Box<Ast>, Box<Ast>),
     Div(Box<Ast>, Box<Ast>),
     Mod(Box<Ast>, Box<Ast>),
-    Exp(Box<Ast>, Box<Ast>),
+    Pow(Box<Ast>, Box<Ast>),
+}
+
+pub type ParseResult = Result<Ast, Error>;
+
+pub fn parse(lexing_result: Result<Vec<Token>, regex::Error>) -> ParseResult {
+    match lexing_result {
+        Err(e) => Err(Error::LexingError(format!("{:?}", e))),
+        Ok(tokens) => {
+            let mut state = TokenStack::new(tokens);
+            expression(&mut state)
+        }
+    }
+}
+
+macro_rules! chain_binary {
+    ($func_name:ident, $next_func:ident, $tokens:expr, $constructor:expr) => {
+        fn $func_name(state: &mut TokenStack) -> ParseResult {
+            let mut expr = $next_func(state)?;
+            while state.next_matches($tokens) {
+                let op = state.pop_token();
+                let right = $next_func(state)?;
+                expr = $constructor(op, Box::new(expr), Box::new(right));
+            }
+            Ok(expr)
+        }
+    };
+}
+
+fn primary(state: &mut TokenStack) -> ParseResult {
+    match state.pop_token() {
+        Token::Numeral(num) => Ok(Ast::Value(num)),
+        Token::LParen => group(state),
+        t => Err(Error::ParsingError(format!("No rule found for {:?}", t))),
+    }
+}
+
+fn negation(state: &mut TokenStack) -> ParseResult {
+    match state.next_token() {
+        Token::Minus => Ok(Ast::Neg(Box::new(negation(state.skip())?))),
+        _ => primary(state),
+    }
+}
+
+chain_binary!(
+    exponentiation,
+    negation,
+    &[Token::Caret],
+    |_, left, right| { Ast::Pow(left, right) }
+);
+
+chain_binary!(
+    factor,
+    exponentiation,
+    &[Token::Star, Token::Slash, Token::Percent],
+    |op, left, right| {
+        match op {
+            Token::Star => Ast::Mult(left, right),
+            Token::Slash => Ast::Div(left, right),
+            Token::Percent => Ast::Mod(left, right),
+            _ => unreachable!(),
+        }
+    }
+);
+
+chain_binary!(
+    term,
+    factor,
+    &[Token::Plus, Token::Minus],
+    |op, left, right| {
+        match op {
+            Token::Plus => Ast::Add(left, right),
+            Token::Minus => Ast::Sub(left, right),
+            _ => unreachable!(),
+        }
+    }
+);
+
+fn group(state: &mut TokenStack) -> ParseResult {
+    let expr = expression(state)?;
+    state.expect(&[Token::RParen], "Expected `)`".to_string())?;
+    Ok(expr)
+}
+
+fn expression(state: &mut TokenStack) -> ParseResult {
+    term(state)
 }
 
 #[derive(Debug)]
@@ -64,88 +144,35 @@ impl TokenStack {
     }
 }
 
-pub type ParseResult = Result<Ast, Error>;
+macro_rules! print_binary {
+    ($f:expr, $indent:expr, $depth:expr, $op:literal, $left:expr, $right:expr) => {{
+        writeln!($f, "{}{}", $indent, $op)?;
+        $left.print($f, $depth + 1)?;
+        $right.print($f, $depth + 1)
+    }};
+}
 
-macro_rules! chain_binary {
-    ($func_name:ident, $next_func:ident, $tokens:expr, $constructor:expr) => {
-        fn $func_name(state: &mut TokenStack) -> ParseResult {
-            let mut expr = $next_func(state)?;
-            // println!("Entered macro func: {}", stringify!($func_name));
-            while state.next_matches($tokens) {
-                let op = state.pop_token();
-                let right = $next_func(state)?;
-                expr = $constructor(op, Box::new(expr), Box::new(right));
+impl Ast {
+    fn print(&self, f: &mut fmt::Formatter<'_>, depth: usize) -> fmt::Result {
+        let indent = "|  ".repeat(depth);
+        match self {
+            Ast::Value(v) => writeln!(f, "{}Value({})", indent, v),
+            Ast::Neg(expr) => {
+                writeln!(f, "{}Neg", indent)?;
+                expr.print(f, depth + 1)
             }
-            Ok(expr)
-        }
-    };
-}
-
-fn primary(state: &mut TokenStack) -> ParseResult {
-    match state.pop_token() {
-        Token::Numeral(num) => Ok(Ast::Value(num)),
-        Token::LParen => group(state),
-        t => Err(Error::ParsingError(format!("No rule found for {:?}", t))),
-    }
-}
-
-fn negation(state: &mut TokenStack) -> ParseResult {
-    match state.next_token() {
-        Token::Minus => Ok(Ast::Neg(Box::new(negation(state.skip())?))),
-        _ => primary(state),
-    }
-}
-
-chain_binary!(
-    exponentiation,
-    negation,
-    &[Token::Caret],
-    |_, left, right| { Ast::Exp(left, right) }
-);
-
-chain_binary!(
-    factor,
-    exponentiation,
-    &[Token::Star, Token::Slash, Token::Percent],
-    |op, left, right| {
-        match op {
-            Token::Star => Ast::Mult(left, right),
-            Token::Slash => Ast::Div(left, right),
-            Token::Percent => Ast::Mod(left, right),
-            _ => unreachable!(),
+            Ast::Add(left, right) => print_binary!(f, indent, depth, "Add", left, right),
+            Ast::Sub(left, right) => print_binary!(f, indent, depth, "Sub", left, right),
+            Ast::Mult(left, right) => print_binary!(f, indent, depth, "Mult", left, right),
+            Ast::Div(left, right) => print_binary!(f, indent, depth, "Div", left, right),
+            Ast::Mod(left, right) => print_binary!(f, indent, depth, "Mod", left, right),
+            Ast::Pow(left, right) => print_binary!(f, indent, depth, "Pow", left, right),
         }
     }
-);
-
-chain_binary!(
-    term,
-    factor,
-    &[Token::Plus, Token::Minus],
-    |op, left, right| {
-        match op {
-            Token::Plus => Ast::Add(left, right),
-            Token::Minus => Ast::Sub(left, right),
-            _ => unreachable!(),
-        }
-    }
-);
-
-fn group(state: &mut TokenStack) -> ParseResult {
-    let expr = expression(state)?;
-    state.expect(&[Token::RParen], "Expected `)`".to_string())?;
-    Ok(expr)
 }
 
-fn expression(state: &mut TokenStack) -> ParseResult {
-    term(state)
-}
-
-pub fn parse(lexing_result: Result<Vec<Token>, regex::Error>) -> ParseResult {
-    match lexing_result {
-        Err(e) => Err(Error::LexingError(format!("{:?}", e))),
-        Ok(tokens) => {
-            let mut state = TokenStack::new(tokens);
-            expression(&mut state)
-        }
+impl Debug for Ast {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.print(f, 0)
     }
 }
