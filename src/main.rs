@@ -1,10 +1,15 @@
 mod lexer;
 mod parser;
 
+use lexer::tokenize;
+use parser::parse;
+
 fn main() {
-    if let Ok(tokens) = lexer::tokenize("(12.6)/17 + .35^2") {
-        for token in tokens {
-            println!("{:?}", token)
-        }
+    let input = "(1 + 2)^3 * 4 / -5 + 6 % (7 + 8)";
+    let lexer_result = tokenize(input);
+    if let Ok(tokens) = &lexer_result {
+        println!("{:?}", tokens);
     }
+    let ast = parse(lexer_result);
+    println!("{:?}", ast)
 }

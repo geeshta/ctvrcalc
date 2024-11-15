@@ -1,0 +1,6 @@
+group = "(" term ")" ;
+
+term = term = factor ( ( "+" | "-" ) factor)* ;
+factor = exponentiation  ( ( "*" | "/" | "%" ) exponentiation )*
+exponentiation = negation ( ( "^" ) negation )* ;
+negation = "-" NUMBER ;
