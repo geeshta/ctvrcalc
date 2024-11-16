@@ -1,26 +1,31 @@
-mod lexer;
-mod parser;
 mod codegen;
 mod error;
+mod interpreter;
+mod lexer;
+mod parser;
+mod runtime;
 
-use lexer::tokenize;
-use parser::parse;
-use codegen::generate_bytecode;
+use interpreter::Interpreter;
+use std::io::{stdin, stdout, Write};
 
+/// Run a REPL
 fn main() {
-    let input = "(1 + 2)^3 * 4 / -5 + 6 % (7 + 8)";
-    println!("Input:\n{}\n", input);
-    let lexer_result = tokenize(input);
-    if let Ok(tokens) = &lexer_result {
-        println!("Tokens:\n{:?}\n", tokens);
-    }
-    let ast_result = parse(lexer_result);
-    match ast_result {
-        Err(e) => println!("{:?}", e),
-        Ok(ast) => {
-            println!("AST:\n{:?}\n", ast);
-            let bytecode = generate_bytecode(ast);
-            println!("Bytecode: \n{:?}\n", bytecode);
+    let mut line: String;
+    let mut interpreter = Interpreter::new();
+
+    loop {
+        line = String::new();
+        print!("> ");
+        _ = stdout().flush();
+
+        match stdin().read_line(&mut line) {
+            Err(e) => {
+                println!("{}", e);
+            }
+            Ok(_) => {
+                interpreter.input = line;
+                interpreter.run_and_print();
+            }
         }
     }
 }

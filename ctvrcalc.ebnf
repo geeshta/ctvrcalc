@@ -2,5 +2,5 @@ group = "(" term ")" ;
 
 term = term = factor ( ( "+" | "-" ) factor)* ;
 factor = exponentiation  ( ( "*" | "/" | "%" ) exponentiation )*
-exponentiation = negation ( ( "^" ) negation )* ;
+exponentiation = negation ( ( "^" ) exponentiation )* ;
 negation = "-" NUMBER ;

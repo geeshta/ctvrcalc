@@ -1,5 +1,7 @@
+//// Logic for traversing and AST and generating a "bytecode" of instructions for the runtime
 use crate::parser::Ast;
 
+/// Valid instructions for the runtime ("bytecode" even though the instructions are not actual bytes)
 #[derive(Debug)]
 pub enum Instruction {
     PUSH(f64),
@@ -9,35 +11,56 @@ pub enum Instruction {
     MULT,
     DIV,
     MOD,
-    POW
+    POW,
 }
 
-macro_rules! generate_binary {
-    ($bytecode:expr, $left:expr, $right:expr, $instruction:expr) => {{
-        extend_bytecode($bytecode, *$left);
-        extend_bytecode($bytecode, *$right);
-        $bytecode.push($instruction);
-    }};
-}
-
+/// Public interface for bytecode generation from an AST
 pub fn generate_bytecode(ast: Ast) -> Vec<Instruction> {
     let mut bytecode = Vec::new();
     extend_bytecode(&mut bytecode, ast);
     bytecode
 }
 
+/// Recursive function that first visits the leaves of a node and appends the node instruction last
+/// for operation on a stack-based runtime
 fn extend_bytecode(bytecode: &mut Vec<Instruction>, ast: Ast) {
     match ast {
-        Ast::Value(num) => bytecode.push(Instruction::PUSH(num)),
+        Ast::Value(num) => {
+            bytecode.push(Instruction::PUSH(num));
+        }
         Ast::Neg(right) => {
             extend_bytecode(bytecode, *right);
             bytecode.push(Instruction::NEG);
         }
-        Ast::Add(left, right) => generate_binary!(bytecode, left, right, Instruction::ADD),
-        Ast::Sub(left, right) => generate_binary!(bytecode, left, right, Instruction::SUB),
-        Ast::Mult(left, right) => generate_binary!(bytecode, left, right, Instruction::MULT),
-        Ast::Div(left, right) => generate_binary!(bytecode, left, right, Instruction::DIV),
-        Ast::Mod(left, right) => generate_binary!(bytecode, left, right, Instruction::MOD),
-        Ast::Pow(left, right) => generate_binary!(bytecode, left, right, Instruction::POW),
+        Ast::Add(left, right) => {
+            extend_bytecode(bytecode, *left);
+            extend_bytecode(bytecode, *right);
+            bytecode.push(Instruction::ADD);
+        }
+        Ast::Sub(left, right) => {
+            extend_bytecode(bytecode, *left);
+            extend_bytecode(bytecode, *right);
+            bytecode.push(Instruction::SUB);
+        }
+        Ast::Mult(left, right) => {
+            extend_bytecode(bytecode, *left);
+            extend_bytecode(bytecode, *right);
+            bytecode.push(Instruction::MULT);
+        }
+        Ast::Div(left, right) => {
+            extend_bytecode(bytecode, *left);
+            extend_bytecode(bytecode, *right);
+            bytecode.push(Instruction::DIV);
+        }
+        Ast::Mod(left, right) => {
+            extend_bytecode(bytecode, *left);
+            extend_bytecode(bytecode, *right);
+            bytecode.push(Instruction::MOD);
+        }
+        Ast::Pow(left, right) => {
+            extend_bytecode(bytecode, *left);
+            extend_bytecode(bytecode, *right);
+            bytecode.push(Instruction::POW);
+        }
     }
 }
