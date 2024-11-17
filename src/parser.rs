@@ -46,7 +46,7 @@ fn negation(state: &mut TokenStack) -> ParseResult {
 fn exponentiation(state: &mut TokenStack) -> ParseResult {
     let mut left = negation(state)?;
     if state.next_matches(&[Token::Caret]) {
-        let _ = state.pop_token();
+        state.skip();
         let right = exponentiation(state)?;
         left = Ast::Pow(Box::new(left), Box::new(right));
     }
