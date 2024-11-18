@@ -30,15 +30,15 @@ impl Interpreter {
     pub fn run_and_print(&self) -> () {
         let res = tokenize(&self.input)
             .and_then(|tokens| {
-                println!("=== TOKENS ===\n{:?}\n", tokens);
+                println!("\n=== TOKENS ===\n{:?}", tokens);
                 parse(tokens)
             })
             .map(|ast| {
-                println!("=== AST ===\n{:?}\n", ast);
+                println!("\n=== AST ===\n{:?}", ast);
                 generate_bytecode(ast)
             })
             .and_then(|bytecode| {
-                println!("=== BYTECODE ===");
+                println!("\n=== BYTECODE ===");
                 for instruction in &bytecode {
                     println!("{:?}", instruction)
                 }
@@ -48,7 +48,7 @@ impl Interpreter {
 
         match res {
             Err(e) => println!("{:?}", e),
-            Ok(f) => println!("=== RESULT ===\n{:?}\n", f),
+            Ok(f) => println!("\n=== RESULT ===\n{:?}", f),
         }
     }
 }
