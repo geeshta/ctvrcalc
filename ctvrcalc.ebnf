@@ -1,6 +1,14 @@
-group = "(" term ")" ;
+expr = term ;
+group = "(" expr ")" ;
 
-term = term = factor ( ( "+" | "-" ) factor)* ;
-factor = exponentiation  ( ( "*" | "/" | "%" ) exponentiation )*
+term = factor ( ( "+" | "-" ) factor)* ;
+factor = exponentiation  ( ( "*" | "/" | "%" ) exponentiation )* ;
 exponentiation = negation ( ( "^" ) exponentiation )* ;
-negation = "-" NUMBER ;
+negation = "-" primary ;
+
+primary = group | NUMERAL ;
+
+NUMERAL = integer | float ;
+integer = [0-9]+ ;
+float = ( [0-9]+ )? "." [0-9]+ ;
+
